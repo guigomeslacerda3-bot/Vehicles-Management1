@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Management GWM - Repair (泊车管理 GWM - 维修)</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
+
+    <style>
+        /* Estilos Gerais */
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        hr { border: 0; border-top: 1px solid #eee; margin: 30px 0; }
+        h1, h2 { color: #333; }
+
+        /* Estilos do Formulário */
+        #form-alocacao label, #form-desalocacao label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        #form-alocacao input, #form-alocacao select,
+        #form-desalocacao input, #form-desalocacao select, #form-desalocacao button, #export-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        
+        /* Ajuste do botão de Alocação para não ter a margem default dos inputs */
+        #form-alocacao button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 5px; /* Reduzindo a margem para o bloco de pesquisa */
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        #form-alocacao button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Estilos de Desalocação */
+        #form-desalocacao button {
+            background-color: #dc3545;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            transition: background-color 0.3s;
+        }
+        #form-desalocacao button:hover {
+            background-color: #c82333;
+        }
+        /* Estilos do Botão CSV */
+        #export-button {
+            background-color: #1e7e34;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        #export-button:hover {
+            background-color: #155724;
+        }
+
+        .form-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Estilos do Mapa de Estacionamento */
+        #parking-map {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* Estilo da Fileira (Line) */
+        .row-section {
+            width: 100%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .row-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .row-spots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        /* Estilo do Carro/Vaga */
+        .spot {
+            width: 60px;
+            height: 90px;
+            border: 2px solid;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.7em;
+            text-align: center;
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .spot:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Vaga VAZIA (Contorno Verde) */
+        .spot.empty {
+            border-color: #28a745;
+            background-color: #e6ffe6;
+            color: #28a745;
+            font-weight: bold;
+        }
+        .spot.empty::before {
+            content: 'LIVRE (免费)';
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        /* Vaga OCUPADA (Contorno Vermelho) */
+        .spot.occupied {
+            border-color: #dc3545;
+            background-color: #ffe6e6;
+            color: #333;
+        }
+        .spot.occupied::before {
+            content: '🚗';
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .vin-display {
+            font-weight: bold;
+            word-break: break-all;
+            padding: 2px;
+            border-top: 1px solid #dc3545;
+            margin-top: 5px;
+            width: 90%;
+            font-size: 0.7em;
+        }
+        .date-display {
+            font-size: 0.7em;
+            margin-top: 2px;
+            color: #666;
+            line-height: 1.2;
+        }
+        
+        /* Estilos da Tabela de Estatísticas */
+        #stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 1em;
+        }
+        #stats-table th, #stats-table td {
+            border: 1px solid #ccc;
+            padding: 12px;
+            text-align: center;
+        }
+        #stats-table th {
+            background-color: #007bff;
+            color: white;
+        }
+        #stats-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        /* Tooltip de Código de Barras */
+        .barcode-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background-color: white; 
+            border: 1px solid #333;
+            padding: 5px;
+            border-radius: 3px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+            display: none;
+            pointer-events: none;
+            width: 300px; 
+            height: 300px;
+            box-sizing: border-box; 
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+        .barcode-text {
+            font-family: 'Libre Barcode 128', sans-serif;
+            font-size: 50px; 
+            line-height: 1;
+            max-width: 100%; 
+            overflow: hidden; 
+        }
+        .barcode-vin-number {
+            font-family: sans-serif;
+            font-size: 1.2em;
+            margin-top: 10px;
+            word-break: break-all;
+            padding: 0 10px; 
+        }
+
+        /* Estilo para a barra de pesquisa de Alocação - COMPACTO */
+        #search-container-alocar {
+            margin-top: 5px; /* Margem após o botão Alocar */
+            margin-bottom: 20px;
+            padding: 10px; /* Reduzindo o padding */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #eaf2ff;
+        }
+        #search-container-alocar h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #007bff;
+            font-size: 1.1em; /* Reduzindo o tamanho do cabeçalho */
+        }
+        /* Ajustando o input de pesquisa para ser mais compacto */
+        #vin-search-alocar {
+            padding: 8px; /* Padding menor */
+            margin-bottom: 5px; /* Margem menor */
+            font-size: 0.9em; /* Fonte menor */
+        }
+        /* Estilo para a caixa de resultados */
+        #search-results {
+            margin-top: 10px; /* Reduzindo a margem */
+            padding: 8px; /* Reduzindo o padding */
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            background-color: #f0f7ff;
+            font-size: 0.9em; /* Fonte menor */
+            display: none; /* Inicia oculto */
+        }
+        #search-results p {
+            margin: 3px 0; /* Margem menor entre parágrafos */
+            line-height: 1.3;
+        }
+        #search-results strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🅿️ Parking Management GWM - Repair (泊车管理 GWM - 维修)</h1>
+
+        <div class="form-group">
+            <section id="alocacao">
+                <h2>Alocar Carro (分配车辆)</h2>
+                
+                <form id="form-alocacao">
+                    <label for="vin-number">VIN NUMBER (17 Caracteres) (VIN 号码):</label>
+                    <input type="text" id="vin-number" maxlength="17" required pattern="[a-zA-Z0-9]{17}" title="Deve conter exatamente 17 caracteres alfanuméricos (letras e números).">
+
+                    <label for="row">Linha (Line):</label>
+                    <select id="row" required>
+                        <option value="">Selecione a Linha (选择线)</option>
+                        <option value="A">Line A (A 线)</option>
+                        <option value="B">Line B (B 线)</option>
+                        <option value="C">Line C (C 线)</option>
+                        <option value="D">Line D (D 线)</option>
+                        <option value="E">Line E (E 线)</option>
+                        <option value="F">Line F (F 线)</option>
+                    </select>
+
+                    <label for="spot-number">Vagas (1-34) (车位):</label>
+                    <input type="number" id="spot-number" min="1" max="34" required>
+
+                    <button type="submit">Alocar Carro (分配车辆)</button>
+                </form>
+
+                <div id="search-container-alocar">
+                    <h3>🔍 Buscar Carro por VIN (通过 VIN 查找汽车)</h3>
+                    <label for="vin-search-alocar">VIN NUMBER (Completo ou Últimos 6 Dígitos) (完整的 VIN 号码或后 6 位):</label>
+                    <input type="text" id="vin-search-alocar" maxlength="17" placeholder="Digite 17 ou 6 dígitos do VIN (输入 17 或 6 位 VIN 号码)">
+                    <p style="font-size: 0.7em; margin-top: -5px; margin-bottom: 5px;">* Aperte **ENTER** após digitar. (输入后按 **ENTER** 键)</p>
+                    
+                    <div id="search-results">
+                        </div>
+                </div>
+                </section>
+            
+            <section id="desalocacao">
+                <h2>Desalocar Carro (释放车辆)</h2>
+                
+                <p style="font-size: 0.9em; margin-top: 5px;">* Preencha abaixo ou use o mapa para desalocar. (填写以下内容或使用地图释放)</p>
+
+                <form id="form-desalocacao">
+                    <label for="free-row">Linha (Line):</label>
+                    <select id="free-row" required>
+                        <option value="">Selecione a Linha (选择线)</option>
+                        <option value="A">Line A (A 线)</option>
+                        <option value="B">Line B (B 线)</option>
+                        <option value="C">Line C (C 线)</option>
+                        <option value="D">Line D (D 线)</option>
+                        <option value="E">Line E (E 线)</option>
+                        <option value="F">Line F (F 线)</option>
+                    </select>
+
+                    <label for="free-spot-number">Vagas (1-34) (车位):</label>
+                    <input type="number" id="free-spot-number" min="1" max="34" required>
+
+                    <button type="submit">Desalocar Carro (释放车辆)</button>
+                </form>
+                <p style="font-size: 0.9em; margin-top: -10px;">* Clique no carro no mapa para desalocar. (点击地图上的车位以释放)</p>
+            </section>
+        </div>
+        
+        <p id="message" style="margin-top: 10px; font-weight: bold; padding: 10px; border-radius: 4px;"></p>
+
+        <hr>
+
+        <button id="export-button">Exportar Dados para CSV (导出数据到 CSV)</button>
+
+        <section id="consulta">
+            <h2>Estatísticas e Visualização (统计和视图)</h2>
+            
+            <h3>Estatísticas Atuais (当前统计)</h3>
+            <table id="stats-table">
+                <thead>
+                    <tr>
+                        <th>Total de Vagas (总车位)</th>
+                        <th>Vagas Ocupadas (已占用)</th>
+                        <th>Vagas Livres (空闲)</th>
+                        <th>Taxa de Ocupação (占用率)</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-body">
+                    </tbody>
+            </table>
+            
+            <h3 style="margin-top: 30px;">Visualização do Estacionamento (Total: 204 Vagas) (停车场视图)</h3>
+            <div id="parking-map">
+                </div>
+        </section>
+    </div>
+    
+    <div id="barcodeTooltip" class="barcode-tooltip"></div>
+
+    <script>
+        const ROWS = ['A', 'B', 'C', 'D', 'E', 'F'];
+        const MAX_SPOTS = 34;
+        const TOTAL_SPOTS = ROWS.length * MAX_SPOTS;
+        const messageElement = document.getElementById('message');
+        const barcodeTooltip = document.getElementById('barcodeTooltip');
+        const exportButton = document.getElementById('export-button');
+        
+        // Elementos de pesquisa
+        const vinSearchAlocarInput = document.getElementById('vin-search-alocar');
+        const searchResultsDiv = document.getElementById('search-results');
+        const freeRowSelect = document.getElementById('free-row');
+        const freeSpotInput = document.getElementById('free-spot-number');
+
+
+        // --- IndexedDB Configuration ---
+        const DB_NAME = 'GWMParkingDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'parkingSpots';
+        let db;
+
+        /**
+         * Exibe a mensagem de feedback.
+         */
+        function showMessage(text, type = 'info') {
+            messageElement.textContent = text;
+            if (type === 'success') {
+                messageElement.style.color = 'green';
+                messageElement.style.backgroundColor = '#e6ffe6';
+            } else if (type === 'error') {
+                messageElement.style.color = 'red';
+                messageElement.style.backgroundColor = '#ffe6e6';
+            } else {
+                messageElement.style.color = 'blue';
+                messageElement.style.backgroundColor = '#e6f0ff';
+            }
+        }
+        
+        /**
+         * Inicializa e abre o IndexedDB.
+         */
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                if (!window.indexedDB) {
+                    showMessage("Erro Crítico (严重错误): IndexedDB não suportado neste navegador.", 'error');
+                    reject(new Error("IndexedDB não suportado neste navegador."));
+                    return;
+                }
+
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = function(event) {
+                    const errorCode = event.target.errorCode;
+                    showMessage(`Erro (错误): Falha ao abrir o armazenamento de dados. Código: ${errorCode}`, 'error');
+                    reject(errorCode);
+                };
+
+                request.onsuccess = function(event) {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = function(event) {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'spotKey' });
+                        objectStore.createIndex('vin_idx', 'vin', { unique: false }); 
+                    }
+                };
+            });
+        }
+
+        /**
+         * Salva ou atualiza um registro no IndexedDB.
+         */
+        function saveParkingEntry(entry) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error("Banco de dados não está aberto."));
+                    return;
+                }
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                
+                const request = store.put(entry);
+                
+                request.onsuccess = () => resolve();
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        /**
+         * Carrega todos os registros do IndexedDB.
+         */
+        function loadAllParkingData() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    resolve({});
+                    return;
+                }
+
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = function(event) {
+                    const dataMap = {};
+                    event.target.result.forEach(entry => {
+                        dataMap[entry.spotKey] = entry;
+                    });
+                    resolve(dataMap);
+                };
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        }
+        
+        /**
+         * Busca o carro pelo VIN (completo ou 6 dígitos).
+         */
+        async function findCarByVin(vin) {
+            vin = vin.toUpperCase().trim();
+            
+            if (vin.length !== 17 && vin.length !== 6) {
+                return null;
+            }
+
+            try {
+                const parkingData = await loadAllParkingData();
+                const cleanVinToSearch = vin.replace(/\*/g, '');
+
+                const foundEntry = Object.values(parkingData).find(entry => {
+                    const cleanEntryVin = entry.vin.replace(/\*/g, '');
+                    
+                    if (vin.length === 17) {
+                        return cleanEntryVin === cleanVinToSearch;
+                    } else if (vin.length === 6) {
+                        return cleanEntryVin.slice(-6) === cleanVinToSearch;
+                    }
+                    return false;
+                });
+
+                return foundEntry;
+
+            } catch (e) {
+                console.error("Erro na busca por VIN:", e);
+                return null;
+            }
+        }
+
+        // Função para exibir os resultados da pesquisa
+        function displaySearchResults(entry) {
+            if (entry) {
+                const cleanVin = entry.vin.replace(/\*/g, '');
+                searchResultsDiv.innerHTML = `
+                    <p><strong>Carro Encontrado (找到汽车):</strong></p>
+                    <p>VIN Completo (完整的 VIN): <strong>${cleanVin}</strong></p>
+                    <p>Localização (位置): <strong>${entry.spotKey}</strong></p>
+                    <p>Data/Hora Inclusão (添加日期/时间): <strong>${entry.dateFormatted}</strong></p>
+                    <p style="margin-top: 5px; font-weight: bold; color: #dc3545;">ESTACIONADO (已停车)</p>
+                `;
+                searchResultsDiv.style.display = 'block';
+                showMessage(`Carro VIN ${cleanVin} encontrado na vaga ${entry.spotKey}.`, 'success');
+
+            } else {
+                searchResultsDiv.innerHTML = `
+                    <p><strong>Resultado (结果):</strong></p>
+                    <p>Nenhum carro encontrado com esse VIN. (未找到该 VIN 的汽车)</p>
+                    <p style="margin-top: 5px; font-weight: bold; color: #28a745;">LIVRE (免费)</p>
+                `;
+                searchResultsDiv.style.display = 'block';
+                showMessage(`Informação (信息): Nenhum carro encontrado.`, 'info');
+            }
+        }
+
+        // Evento para pesquisa de VIN ao pressionar ENTER (na seção de ALOCAÇÃO)
+        vinSearchAlocarInput.addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); 
+                const vin = this.value;
+                
+                if (vin.length !== 17 && vin.length !== 6) {
+                    showMessage(`Erro (错误): O VIN deve ter 17 ou 6 dígitos. Você digitou ${vin.length}.`, 'error');
+                    searchResultsDiv.style.display = 'none';
+                    return;
+                }
+                
+                const car = await findCarByVin(vin);
+                displaySearchResults(car);
+                
+                // Extra: se o carro for encontrado, preenche os campos de desalocação
+                if (car) {
+                    freeRowSelect.value = car.row;
+                    freeSpotInput.value = car.spot;
+                } else {
+                    freeRowSelect.value = "";
+                    freeSpotInput.value = "";
+                }
+            }
+        });
+
+
+        /**
+         * Deleta um registro (baseado no spotKey) do IndexedDB.
+         */
+        function deleteParkingEntry(spotKey) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error("Banco de dados não está aberto."));
+                    return;
+                }
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                
+                const request = store.delete(spotKey);
+                
+                request.onsuccess = () => resolve();
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        // --- Funções de Lógica ---
+        
+        function updateStatsTable(occupiedCount) {
+            const freeCount = TOTAL_SPOTS - occupiedCount;
+            const occupancyRate = ((occupiedCount / TOTAL_SPOTS) * 100).toFixed(2);
+            
+            const statsBody = document.getElementById('stats-body');
+            statsBody.innerHTML = `
+                <tr>
+                    <td>${TOTAL_SPOTS}</td>
+                    <td>${occupiedCount}</td>
+                    <td>${freeCount}</td>
+                    <td>${occupancyRate}%</td>
+                </tr>
+            `;
+        }
+
+        // Função principal para alocar um carro (ASYNC)
+        document.getElementById('form-alocacao').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const vinInput = document.getElementById('vin-number');
+            const vinNumber = vinInput.value.toUpperCase();
+            const row = document.getElementById('row').value;
+            const spotNumber = parseInt(document.getElementById('spot-number').value);
+            
+            // 1. Validação de VIN NUMBER
+            const vinRegex = /^[A-Z0-9]{17}$/;
+            if (!vinRegex.test(vinNumber)) {
+                showMessage("Erro (错误): O VIN NUMBER deve conter exatamente 17 caracteres alfanuméricos.", 'error');
+                return;
+            }
+
+            try {
+                const parkingData = await loadAllParkingData();
+
+                // 2. Validação de VIN NUMBER JÁ ALOCADO 
+                const existingEntry = Object.values(parkingData).find(entry => entry.vin.replace(/\*/g, '') === vinNumber);
+                if (existingEntry) {
+                    showMessage(`Erro (错误): Carro VIN ${vinNumber} já alocado na vaga ${existingEntry.row}${existingEntry.spot}.`, 'error');
+                    return;
+                }
+
+                const spotKey = `${row}${spotNumber}`;
+
+                // 3. Validação de VAGA OCUPADA
+                if (parkingData[spotKey]) {
+                    showMessage(`Erro (错误): A vaga ${spotKey} já está ocupada pelo VIN ${parkingData[spotKey].vin.replace(/\*/g, '')}.`, 'error');
+                    return;
+                }
+
+                // 4. ALOCAÇÃO
+                const now = new Date();
+                const formattedVin = `*${vinNumber}*`; 
+
+                const newEntry = {
+                    spotKey: spotKey,
+                    vin: formattedVin,
+                    row: row,
+                    spot: spotNumber,
+                    timestamp: now.toISOString(),
+                    dateFormatted: now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR')
+                };
+
+                await saveParkingEntry(newEntry);
+                await generateParkingMap(); 
+                showMessage(`Sucesso (成功)! Carro VIN ${vinNumber} alocado em ${spotKey}. Data/Hora: ${newEntry.dateFormatted}`, 'success');
+                document.getElementById('form-alocacao').reset();
+                // Limpa resultados da pesquisa após alocação bem-sucedida
+                searchResultsDiv.style.display = 'none'; 
+                vinSearchAlocarInput.value = '';
+
+            } catch (e) {
+                console.error("Erro na alocação:", e);
+                showMessage("Erro (错误): Falha crítica ao salvar a alocação de dados. Verifique se o banco de dados está aberto.", 'error');
+            }
+        });
+
+        // Função para desalocar um carro (ASYNC)
+        async function freeSpot(row, spotNumber) {
+            const spotKey = `${row}${spotNumber}`;
+            
+            try {
+                const parkingData = await loadAllParkingData();
+                const entry = parkingData[spotKey];
+
+                if (!entry) {
+                    showMessage(`Erro (错误): A vaga ${spotKey} já está vazia.`, 'error');
+                    return;
+                }
+
+                const vin = entry.vin.replace(/\*/g, '');
+                
+                await deleteParkingEntry(spotKey);
+                await generateParkingMap();
+                showMessage(`Vaga ${spotKey} liberada com sucesso (成功释放). VIN ${vin} saiu.`, 'success');
+                
+                // Limpa resultados da pesquisa após desalocação bem-sucedida
+                searchResultsDiv.style.display = 'none'; 
+                vinSearchAlocarInput.value = '';
+                freeRowSelect.value = "";
+                freeSpotInput.value = "";
+
+
+            } catch (e) {
+                console.error("Erro na desalocação:", e);
+                showMessage("Erro (错误): Falha crítica ao desalocar os dados. Tente novamente.", 'error');
+            }
+        }
+
+        // Desalocação por formulário (ASYNC)
+        document.getElementById('form-desalocacao').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const row = document.getElementById('free-row').value;
+            const spotNumber = parseInt(document.getElementById('free-spot-number').value);
+            
+            if (row && spotNumber) {
+                await freeSpot(row, spotNumber);
+            } else {
+                showMessage('Erro (错误): Por favor, selecione a Linha e o Número da Vaga.', 'error');
+            }
+            document.getElementById('form-desalocacao').reset();
+        });
+
+
+        // Função para Exportar para CSV (ASYNC)
+        async function exportToCSV() {
+            try {
+                const parkingData = await loadAllParkingData();
+                
+                if (Object.keys(parkingData).length === 0) {
+                    showMessage("Informação (信息): Nenhum dado para exportar.", 'info');
+                    return;
+                }
+
+                let csv = "Vaga (Line+Spot),Linha (Line),Numero da Vaga (Spot),VIN Number,Data/Hora de Alocacao (Date/Time Alocated)\n";
+
+                const sortedKeys = Object.keys(parkingData).sort(); 
+                
+                sortedKeys.forEach(key => {
+                    const entry = parkingData[key];
+                    const cleanVin = entry.vin.replace(/\*/g, ''); 
+                    
+                    csv += `${key},${entry.row},${entry.spot},${cleanVin},"${entry.dateFormatted}"\n`;
+                });
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute("href", url);
+                const now = new Date();
+                const filename = `GWM_Parking_Data_${now.toISOString().slice(0, 10).replace(/-/g, '')}_${now.getHours()}${now.getMinutes()}.csv`;
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showMessage("Sucesso (成功)! Dados exportados para CSV.", 'success');
+            } catch (e) {
+                console.error("Erro na exportação CSV:", e);
+                showMessage("Erro (错误): Falha ao exportar dados. Verifique a console para detalhes.", 'error');
+            }
+        }
+
+        exportButton.addEventListener('click', exportToCSV);
+
+        // Função para gerar o mapa de consulta (ASYNC)
+        async function generateParkingMap() {
+            const parkingMap = document.getElementById('parking-map');
+            parkingMap.innerHTML = '';
+            
+            let parkingData = {};
+            try {
+                parkingData = await loadAllParkingData();
+            } catch (e) {
+                console.error("Erro ao carregar dados para o mapa:", e);
+                showMessage("Erro (错误): Não foi possível carregar dados para o mapa. Tente recarregar a página.", 'error');
+                return;
+            }
+
+            let occupiedCount = 0;
+
+            ROWS.forEach(row => {
+                const rowSection = document.createElement('div');
+                rowSection.className = 'row-section';
+                rowSection.innerHTML = `<div class="row-header">Line ${row} (线 ${row})</div><div class="row-spots"></div>`;
+                const rowSpotsContainer = rowSection.querySelector('.row-spots');
+
+                for (let i = 1; i <= MAX_SPOTS; i++) {
+                    const spotKey = `${row}${i}`;
+                    const entry = parkingData[spotKey];
+                    const isOccupied = !!entry;
+                    
+                    if (isOccupied) {
+                        occupiedCount++;
+                    }
+
+                    const spotElement = document.createElement('div');
+                    spotElement.className = `spot ${isOccupied ? 'occupied' : 'empty'}`;
+                    
+                    let vinDisplay = isOccupied ? entry.vin.replace(/\*/g, '') : '';
+                    let titleText = isOccupied ? `Vaga: ${spotKey}\nVIN: ${vinDisplay}\nAlocado em: ${entry.dateFormatted}\nClique para Desalocar (点击释放)` : `Vaga: ${spotKey}\nStatus: Livre (免费)`;
+                    spotElement.title = titleText;
+                    
+                    // Lógica do Tooltip (mouseover e mouseout)
+                    if (isOccupied) {
+                        spotElement.dataset.vin = entry.vin; 
+
+                        spotElement.addEventListener('mouseover', function(e) {
+                            barcodeTooltip.innerHTML = `
+                                <div class="barcode-text">${this.dataset.vin}</div>
+                                <div class="barcode-vin-number">VIN: ${this.dataset.vin.replace(/\*/g, '')}</div>
+                            `;
+                            
+                            const rect = this.getBoundingClientRect();
+                            const tooltipWidth = barcodeTooltip.offsetWidth;
+                            const tooltipHeight = barcodeTooltip.offsetHeight;
+                            
+                            const topPosition = rect.top + window.scrollY - tooltipHeight - 5;
+                            const leftPosition = rect.left + window.scrollX + (rect.width / 2) - (tooltipWidth / 2);
+                            
+                            barcodeTooltip.style.top = `${Math.max(5, topPosition)}px`;
+                            barcodeTooltip.style.left = `${Math.max(5, Math.min(leftPosition, window.innerWidth + window.scrollX - tooltipWidth - 5))}px`;
+                            barcodeTooltip.style.display = 'flex';
+                        });
+
+                        spotElement.addEventListener('mouseout', function() {
+                            barcodeTooltip.style.display = 'none';
+                        });
+                    }
+
+                    // Adiciona o evento de clique para desalocar
+                    spotElement.addEventListener('click', function() {
+                        if (isOccupied) {
+                            if (confirm(`Tem certeza que deseja desalocar o VIN ${vinDisplay} da vaga ${spotKey}? (确定要释放车位吗?)`)) {
+                                // Preenche os campos de desalocação e executa a função
+                                freeRowSelect.value = row;
+                                freeSpotInput.value = i;
+                                freeSpot(row, i);
+                            }
+                        } else {
+                            showMessage(`A vaga ${spotKey} já está vazia. (车位已空)`, 'info');
+                        }
+                    });
+
+                    if (isOccupied) {
+                        // Vaga OCUPADA
+                        spotElement.innerHTML = `
+                            <span>${row}${i}</span>
+                            <div class="vin-display">${vinDisplay}</div>
+                            <div class="date-display">${entry.dateFormatted}</div>
+                        `;
+                    } else {
+                        // Vaga VAZIA
+                        spotElement.innerHTML = `
+                            <span style="font-size: 1.2em; line-height: 1;">${row}${i}</span>
+                        `;
+                    }
+                    
+                    rowSpotsContainer.appendChild(spotElement);
+                }
+
+                parkingMap.appendChild(rowSection);
+            });
+            
+            updateStatsTable(occupiedCount);
+        }
+
+        // --- Inicialização ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tenta abrir o banco de dados. Se falhar, o aplicativo não carrega dados.
+            openDB().then(() => {
+                generateParkingMap();
+                showMessage("Dados carregados com sucesso (成功加载数据) do IndexedDB.", 'info');
+            }).catch(error => {
+                // A função openDB já chama showMessage em caso de erro.
+                console.error("Falha na inicialização do IndexedDB.", error);
+            });
+        });
+    </script>
+</body>
+</html>
